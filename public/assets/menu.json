@@ -1,0 +1,75 @@
+{
+  "lanches": [
+    {
+      "id": "lanche1",
+      "nome": "Smash Ingarandi",
+      "preco": 32.00,
+      "descricao": "Dois smash burgers de 90g, queijo cheddar derretido, cebola na chapa e nosso molho especial no pão brioche tostado.",
+      "tag": "MAIS PEDIDO",
+      "imagem": "/assets/lanches/lanche1.png"
+    },
+    {
+      "id": "lanche2",
+      "nome": "Cheddar Bacon",
+      "preco": 38.00,
+      "descricao": "Hambúrguer artesanal de 160g, creme de cheddar artesanal e tiras de bacon crocante no pão australiano.",
+      "imagem": "/assets/lanches/lanche2.png"
+    },
+    {
+      "id": "lanche3",
+      "nome": "Onion Crunch",
+      "preco": 36.00,
+      "descricao": "Hambúrguer 160g, queijo prato, onion rings crocantes e molho barbecue rústico no pão brioche.",
+      "tag": "NOVO",
+      "imagem": "/assets/lanches/lanche3.png"
+    },
+    {
+      "id": "lanche4",
+      "nome": "Clássico",
+      "preco": 28.00,
+      "descricao": "Hambúrguer 160g, queijo prato, alface americana, tomate italiano e maionese verde no pão tradicional.",
+      "imagem": "/assets/lanches/lanche4.png"
+    },
+    {
+      "id": "lanche5",
+      "nome": "Frango Crispy",
+      "preco": 30.00,
+      "descricao": "Sobrecoxa desossada empanada e hiper crocante, alface, picles e maionese de limão siciliano.",
+      "imagem": "/assets/lanches/lanche5.png"
+    },
+    {
+      "id": "lanche6",
+      "nome": "Futuro Veggie",
+      "preco": 34.00,
+      "descricao": "Hambúrguer de falafel crocante, queijo prato, rúcula fresca e maionese de alho assado.",
+      "tag": "QUASE ACABOU",
+      "imagem": "/assets/lanches/lanche6.png"
+    }
+  ],
+  "adicionais": [
+    { "id": "adicional1", "nome": "Carne extra", "preco": 10.00, "imagem": "/assets/adicionais/adicional1.png" },
+    { "id": "adicional2", "nome": "Bacon extra", "preco": 6.00, "imagem": "/assets/adicionais/adicional2.png" },
+    { "id": "adicional3", "nome": "Queijo extra", "preco": 4.00, "imagem": "/assets/adicionais/adicional3.png" },
+    { "id": "adicional4", "nome": "Cebola caramelizada", "preco": 3.00, "imagem": "/assets/adicionais/adicional4.png" },
+    { "id": "adicional5", "nome": "Ovo", "preco": 3.00, "imagem": "/assets/adicionais/adicional5.png" }
+  ],
+  "molhos": [
+    { "id": "molho1", "nome": "Cheddar", "preco": 4.00, "imagem": "/assets/molhos/molho1.png" },
+    { "id": "molho2", "nome": "Chipotle", "preco": 4.00, "imagem": "/assets/molhos/molho2.png" },
+    { "id": "molho3", "nome": "Barbecue", "preco": 3.00, "imagem": "/assets/molhos/molho3.png" },
+    { "id": "molho4", "nome": "Da Casa", "preco": 3.00, "imagem": "/assets/molhos/molho4.png" }
+  ],
+  "bebidas": [
+    { "id": "bebida1", "nome": "Milkshake", "preco": 14.00, "imagem": "/assets/bebidas/bebida1.png" },
+    { "id": "bebida2", "nome": "Suco Natural", "preco": 9.00, "imagem": "/assets/bebidas/bebida2.png" },
+    { "id": "bebida3", "nome": "Coca-Cola", "preco": 7.00, "imagem": "/assets/bebidas/bebida3.png" },
+    { "id": "bebida4", "nome": "Guaraná", "preco": 7.00, "imagem": "/assets/bebidas/bebida4.png" },
+    { "id": "bebida5", "nome": "Água", "preco": 4.00, "imagem": "/assets/bebidas/bebida5.png" }
+  ],
+  "acompanhamentos": [
+    { "id": "acompanhamento1", "nome": "Batata Grande", "preco": 22.00, "imagem": "/assets/acompanhamentos/acompanhamento1.png" },
+    { "id": "acompanhamento2", "nome": "Onion Rings", "preco": 18.00, "imagem": "/assets/acompanhamentos/acompanhamento2.png" },
+    { "id": "acompanhamento3", "nome": "Nuggets", "preco": 16.00, "imagem": "/assets/acompanhamentos/acompanhamento3.png" },
+    { "id": "acompanhamento4", "nome": "Batata Pequena", "preco": 12.00, "imagem": "/assets/acompanhamentos/acompanhamento4.png" }
+  ]
+}

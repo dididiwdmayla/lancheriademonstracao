@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --color-amarelo: #FFD93D;
+  --color-laranja: #FF6321;
+  --color-tomate: #ef4444;
+  --color-alface: #4ade80;
+  --color-creme: #FAF7F2;
+  --color-marrom-900: #1a0f0a;
+  --color-marrom-600: #3a2215;
+
+  --font-display: Impact, "Arial Black", sans-serif;
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
+
+  --drop-shadow-hard-brown: 10px 10px 0px #1a0f0a;
+}
+
+body {
+  background-color: var(--color-marrom-900, #1a0f0a);
+  color: var(--color-creme, #FAF7F2);
+  font-family: var(--font-body);
+  overflow-x: hidden;
+}
+
+/* Hide scrollbar for CategoryNav */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
