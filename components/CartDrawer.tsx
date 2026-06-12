@@ -5,9 +5,10 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import { X, Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import menuData from "@/public/assets/menu.json";
 
 export default function CartDrawer() {
-  const { cart, removeItem, updateQuantity, total, isCartOpen, setIsCartOpen, setIsUpsellOpen } = useCart();
+  const { cart, removeItem, updateQuantity, total, isCartOpen, setIsCartOpen, setIsUpsellOpen, setIsCheckoutOpen } = useCart();
 
   useEffect(() => {
     if (isCartOpen) {
@@ -30,8 +31,12 @@ export default function CartDrawer() {
 
   const handleCheckout = () => {
     setIsCartOpen(false);
-    setIsUpsellOpen(true);
+    // Add small delay to let drawer closing animation start before opening checkout
+    setTimeout(() => setIsCheckoutOpen(true), 150);
   };
+
+  const lanchesNotInCart = menuData?.lanches.filter((l: any) => !cart.some((c) => c.item.id === l.id)) || [];
+  const suggestedLanche = lanchesNotInCart.length > 0 ? lanchesNotInCart[0] : null;
 
   return (
     <AnimatePresence>
@@ -53,7 +58,7 @@ export default function CartDrawer() {
             className="relative w-full md:w-[420px] bg-marrom-900 h-full shadow-2xl flex flex-col border-l border-creme/10 text-creme"
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-creme/10">
+            <div className="flex items-center justify-between p-6 border-b border-creme/10 shrink-0">
               <h2 className="font-display text-2xl text-creme flex items-center gap-3 italic uppercase">
                 <ShoppingBag size={24} />
                 MEU PEDIDO
@@ -66,6 +71,33 @@ export default function CartDrawer() {
                 <X size={20} />
               </button>
             </div>
+
+            {/* Upsell Inline */}
+            {cart.length > 0 && suggestedLanche && (
+              <div className="bg-creme text-marrom-900 p-3 mx-6 mt-6 rounded-2xl flex items-center gap-3 shrink-0 shadow-lg relative overflow-hidden">
+                 <div className="absolute top-0 bottom-0 right-0 w-24 bg-gradient-to-l from-amarelo/20 to-transparent pointer-events-none" />
+                 <div className="w-12 h-12 bg-marrom-900/5 rounded-xl shrink-0 p-1 relative border border-marrom-900/10">
+                   <Image src={suggestedLanche.imagem} fill alt={suggestedLanche.nome} className="object-contain" />
+                 </div>
+                 <div className="flex-1 py-1">
+                   <p className="font-display text-sm italic uppercase leading-none mb-1">Que tal um {suggestedLanche.nome}?</p>
+                   <p className="font-mono text-xs text-alface font-bold">R$ {suggestedLanche.preco.toFixed(2).replace('.', ',')}</p>
+                 </div>
+                 <button 
+                   onClick={() => {
+                     // Need to select this burger in the customize sheet.
+                     setIsCartOpen(false);
+                     setTimeout(() => {
+                       // Tricky without context, so we'll fire an event
+                       window.dispatchEvent(new CustomEvent('open-customize', { detail: suggestedLanche }));
+                     }, 100);
+                   }}
+                   className="w-8 h-8 shrink-0 bg-marrom-900 text-amarelo rounded-full flex items-center justify-center hover:opacity-90 relative z-10"
+                 >
+                   <Plus size={16} />
+                 </button>
+              </div>
+            )}
 
             {/* Cart Items */}
             <div className="flex-1 overflow-y-auto p-6 font-body">

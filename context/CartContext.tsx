@@ -17,6 +17,8 @@ type CartContextType = {
   setIsUpsellOpen: (isOpen: boolean) => void;
   isCheckoutOpen: boolean;
   setIsCheckoutOpen: (isOpen: boolean) => void;
+  lastAddedItemName: string | null;
+  setLastAddedItemName: (name: string | null) => void;
 };
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -24,6 +26,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isMounted, setIsMounted] = useState(false);
+  const [lastAddedItemName, setLastAddedItemName] = useState<string | null>(null);
   
   // Modals state
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -69,6 +72,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
       return [...prev, { cartItemId, item, isLanche, adicionais, molhos, quantidade: quantity, observacao: observation }];
     });
+    setLastAddedItemName(item.nome);
   };
 
   const removeItem = (cartItemId: string) => {
@@ -101,7 +105,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       cart, addItem, removeItem, updateQuantity, clearCart, total, itemCount,
       isCartOpen, setIsCartOpen,
       isUpsellOpen, setIsUpsellOpen,
-      isCheckoutOpen, setIsCheckoutOpen
+      isCheckoutOpen, setIsCheckoutOpen,
+      lastAddedItemName, setLastAddedItemName
     }}>
       {children}
     </CartContext.Provider>

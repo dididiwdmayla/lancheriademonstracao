@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Fugaz_One, Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { CartProvider } from '@/context/CartContext';
+import SiteGuard from '@/components/SiteGuard';
 
 const fugaz = Fugaz_One({
   weight: '400',
@@ -28,9 +29,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR" className={`${fugaz.variable} ${inter.variable} ${jetbrains.variable}`}>
       <body className="bg-marrom-900 text-creme font-body overflow-x-hidden" suppressHydrationWarning>
-        <CartProvider>
-          {children}
-        </CartProvider>
+        <SiteGuard>
+          <CartProvider>
+            {children}
+          </CartProvider>
+        </SiteGuard>
       </body>
     </html>
   );

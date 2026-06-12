@@ -4,9 +4,26 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { motion } from "motion/react";
 import { OPEN_DAYS, OPEN_HOUR, CLOSE_HOUR } from "@/lib/menu";
+import { onSnapshot, doc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function Hero() {
-  const [isOpen, setIsOpen] = useState<boolean | null>(null);
+  const [isOpenByClock, setIsOpenByClock] = useState<boolean | null>(null);
+  const [recebendoPedidos, setRecebendoPedidos] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    // Config listener
+    const unsub = onSnapshot(doc(db, "config", "site"), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setRecebendoPedidos(data.recebendoPedidos ?? true);
+      } else {
+        setRecebendoPedidos(true);
+      }
+    });
+
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     // Calculate if we're open
@@ -18,7 +35,7 @@ export default function Hero() {
       const isDayOpen = OPEN_DAYS.includes(day);
       const isHourOpen = hour >= OPEN_HOUR && hour < CLOSE_HOUR;
       
-      setIsOpen(isDayOpen && isHourOpen);
+      setIsOpenByClock(isDayOpen && isHourOpen);
     };
     
     checkAvailability();
@@ -35,6 +52,8 @@ export default function Hero() {
       });
     }
   };
+
+  const isActuallyOpen = isOpenByClock && recebendoPedidos;
 
   return (
     <section className="relative min-h-screen w-full flex flex-col items-center justify-center overflow-hidden bg-marrom-900">
@@ -54,11 +73,11 @@ export default function Hero() {
       <div className="relative z-20 flex flex-col items-center justify-center px-4 w-full pt-16">
         
         {/* Open/Close Badge */}
-        {isOpen !== null && (
+        {isOpenByClock !== null && recebendoPedidos !== null && (
           <div className="mb-8 flex items-center gap-2 text-[10px] font-mono font-bold tracking-widest uppercase">
-            <span className={`w-2 h-2 rounded-full animate-pulse ${isOpen ? 'bg-alface' : 'bg-tomate'}`}></span>
+            <span className={`w-2 h-2 rounded-full animate-pulse ${isActuallyOpen ? 'bg-alface' : 'bg-tomate'}`}></span>
             <span className="text-creme/80">
-              {isOpen ? "ESTAMOS ABERTOS" : "ESTAMOS FECHADOS"}
+              {isActuallyOpen ? "ESTAMOS ABERTOS" : "ESTAMOS FECHADOS"}
             </span>
           </div>
         )}

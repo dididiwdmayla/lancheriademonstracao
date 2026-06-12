@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import CategoryNav from "@/components/CategoryNav";
@@ -9,32 +9,27 @@ import CompactSection from "@/components/CompactSection";
 import CustomizeSheet from "@/components/CustomizeSheet";
 import CartDrawer from "@/components/CartDrawer";
 import CheckoutModal from "@/components/CheckoutModal";
-import UpsellToast from "@/components/UpsellToast";
+import AddedToCartToast from "@/components/AddedToCartToast";
 import Footer from "@/components/Footer";
 import DecorativeElement from "@/components/DecorativeElement";
 
 import { Lanche } from "@/lib/menu";
 import { useMenu } from "@/hooks/useMenu";
+import { useCart } from "@/context/CartContext";
 
 export default function Home() {
   const { data, loading, error, refetch } = useMenu();
   const [selectedBurger, setSelectedBurger] = useState<Lanche | null>(null);
   
-  // State for UpsellToast
-  const [lastAddedLancheId, setLastAddedLancheId] = useState<string | null>(null);
+  const { lastAddedItemName, setLastAddedItemName } = useCart();
 
-  const handleBurgerAdded = (lanche: Lanche) => {
-    setLastAddedLancheId(lanche.id);
-  };
-
-  const handleToastAccept = (lanche: Lanche) => {
-    setLastAddedLancheId(null); // Clear toast triggers
-    setSelectedBurger(lanche);
-  };
-
-  const handleToastClose = () => {
-    setLastAddedLancheId(null);
-  };
+  useEffect(() => {
+    const handleOpenCustomize = (e: any) => {
+      setSelectedBurger(e.detail);
+    };
+    window.addEventListener("open-customize", handleOpenCustomize);
+    return () => window.removeEventListener("open-customize", handleOpenCustomize);
+  }, []);
 
   if (loading) {
     return (
@@ -82,7 +77,6 @@ export default function Home() {
                 key={burger.id} 
                 burger={burger} 
                 onSelect={(b) => {
-                  setLastAddedLancheId(null);
                   setSelectedBurger(b as Lanche); // BurgerCard passes logic, we adapt type
                 }}
               />
@@ -119,17 +113,13 @@ export default function Home() {
         lanche={selectedBurger} 
         isOpen={!!selectedBurger} 
         onClose={() => setSelectedBurger(null)} 
-        onAdded={handleBurgerAdded}
+        onAdded={() => {}} // Now handled globally via context
       />
       
-      {/* Toast appears only when there is a recent added lanche ID */}
-      {lastAddedLancheId && (
-         <UpsellToast 
-            lastAddedLancheId={lastAddedLancheId} 
-            onAccept={handleToastAccept} 
-            onClose={handleToastClose} 
-         />
-      )}
+      <AddedToCartToast 
+         itemName={lastAddedItemName} 
+         onClose={() => setLastAddedItemName(null)} 
+      />
 
       <CartDrawer />
       <CheckoutModal />

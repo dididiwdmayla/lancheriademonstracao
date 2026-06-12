@@ -80,12 +80,12 @@ export default function CompactSection({ id, title, items }: Props) {
       
       <div className="relative">
         {/* Fade right indicator */}
-        <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-marrom-900 to-transparent z-10 pointer-events-none" />
-        <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-marrom-900 to-transparent z-10 pointer-events-none md:hidden" />
+        <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-marrom-900 to-transparent z-10 pointer-events-none hidden md:block" />
+        <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-marrom-900 to-transparent z-10 pointer-events-none hidden md:block" />
         
         <div 
           ref={scrollRef}
-          className="flex gap-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-6 pt-2 -mx-4 px-4 md:mx-0 md:px-0"
+          className="flex gap-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-6 pt-2 w-[100vw] -ml-4 pl-4 pr-10 md:w-auto md:ml-0 md:px-0 md:pr-0 scroll-pl-4 md:scroll-pl-0"
         >
           {items.map(item => (
             <CompactCard key={item.id} item={item} />

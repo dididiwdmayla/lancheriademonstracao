@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allow user to write to pedidos if the data represents a valid new order
+    match /pedidos/{pedidoId} {
+      allow create: if true 
+        && request.resource.data.keys().hasAll(['codigo', 'status', 'formaPagamento', 'detalhePagamentoEntrega', 'cliente', 'itens', 'subtotal', 'total', 'observacoesGerais', 'mercadoPago', 'criadoEm', 'atualizadoEm'])
+        && request.resource.data.status in ["em_preparo", "aguardando_pagamento"]
+        && request.resource.data.total > 0
+        && request.resource.data.subtotal > 0
+        && request.resource.data.itens.size() > 0
+        && request.resource.data.criadoEm == request.time;
+
+      allow read, delete: if request.auth != null;
+      allow update: if request.auth != null 
+        // Only allow updating status and mercadoPago fields. Keep totals, items and created time untouched.
+        && request.resource.data.itens == resource.data.itens
+        && request.resource.data.total == resource.data.total
+        && request.resource.data.subtotal == resource.data.subtotal
+        && request.resource.data.cliente == resource.data.cliente
+        && request.resource.data.criadoEm == resource.data.criadoEm;
+    }
+
+    match /config/site {
+      // Configuration document: public can read to see if site is active
+      allow read: if true;
+      // Only authenticated admins can toggle kill switch and order receiving state
+      allow write: if request.auth != null 
+        && request.resource.data.keys().hasAll(["siteAtivo", "recebendoPedidos"])
+        && request.resource.data.siteAtivo is bool
+        && request.resource.data.recebendoPedidos is bool;
+    }
+
+    match /{document=**} {
+      // Deny access to anything implicitly not allowed
+      allow read, write: if false;
+    }
+  }
+}

@@ -23,6 +23,25 @@ export default function BurgerCard({ burger, onSelect }: Props) {
   const smoothRadius = useSpring(radius, { stiffness: 400, damping: 30 });
   const clipPath = useMotionTemplate`circle(${shouldReduceMotion ? radius : smoothRadius}px at ${mouseX}px ${mouseY}px)`;
 
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // For touch devices, activate lens temporarily on tap
+    if (e.pointerType === "touch" || e.pointerType === "pen") {
+      if (isLensActive) return; // Prevent overlapping taps
+      
+      const rect = e.currentTarget.getBoundingClientRect();
+      mouseX.set(e.clientX - rect.left);
+      mouseY.set(e.clientY - rect.top);
+      
+      radius.set(56);
+      setIsLensActive(true);
+      
+      setTimeout(() => {
+        radius.set(0);
+        setIsLensActive(false);
+      }, 800);
+    }
+  };
+
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === "touch" || e.pointerType === "pen") return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -43,7 +62,11 @@ export default function BurgerCard({ burger, onSelect }: Props) {
   };
 
   return (
-    <div 
+    <motion.div 
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
       className="bg-creme p-4 rounded-[32px] flex flex-col sm:flex-row gap-4 shadow-2xl relative overflow-hidden group transition-all hover:bg-white"
     >
       {/* Tag */}
@@ -59,7 +82,8 @@ export default function BurgerCard({ burger, onSelect }: Props) {
 
       {/* Image Area */}
       <div 
-        className="relative w-full h-48 sm:w-28 sm:h-28 bg-marrom-900/5 rounded-2xl overflow-hidden shrink-0 hidden [@media(pointer:fine)]:block cursor-crosshair"
+        className="relative w-full h-48 sm:w-28 sm:h-28 bg-marrom-900/5 rounded-2xl overflow-hidden shrink-0 cursor-crosshair"
+        onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
@@ -109,17 +133,6 @@ export default function BurgerCard({ burger, onSelect }: Props) {
         </motion.div>
       </div>
 
-      {/* Touch Fallback Image Area (No hover effects) */}
-      <div className="relative w-full h-48 sm:w-28 sm:h-28 bg-marrom-900/5 rounded-2xl overflow-hidden shrink-0 [@media(pointer:fine)]:hidden pointer-events-none">
-        <Image
-          src={burger.imagem}
-          alt={burger.nome}
-          fill
-          className="object-cover p-2 drop-shadow-md"
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-        />
-      </div>
-
       {/* Content Area */}
       <div className="flex flex-col justify-center flex-1">
         <h3 className="text-marrom-900 font-display font-black text-xl italic uppercase">
@@ -143,6 +156,6 @@ export default function BurgerCard({ burger, onSelect }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

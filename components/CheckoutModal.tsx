@@ -2,20 +2,27 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, ChevronDown, ChevronUp, CheckCircle } from "lucide-react";
+import { X, ChevronDown, ChevronUp, CheckCircle, Wallet, CreditCard, Banknote, Smartphone } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { WHATSAPP_NUMBER } from "@/lib/menu";
+import { criarPedido, FormaPagamento, DetalhePagamentoEntrega } from "@/lib/pedidos";
 
 export default function CheckoutModal() {
   const { cart, total, isCheckoutOpen, setIsCheckoutOpen, clearCart } = useCart();
   
+  const [step, setStep] = useState<"dados" | "pagamento" | "sucesso">("dados");
   const [nome, setNome] = useState("");
   const [endereco, setEndereco] = useState("");
   const [telefone, setTelefone] = useState("");
   const [observacoesGlobais, setObservacoesGlobais] = useState("");
   
   const [showSummary, setShowSummary] = useState(false);
-  const [isSent, setIsSent] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [pedidoCodigo, setPedidoCodigo] = useState<string>("");
+
+  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("na_entrega");
+  const [detalhePagamento, setDetalhePagamento] = useState<DetalhePagamentoEntrega>(null);
 
   const formatPhone = (val: string) => {
     const raw = val.replace(/\D/g, "");
@@ -30,15 +37,40 @@ export default function CheckoutModal() {
   const isEnderecoValid = endereco.trim().length > 5;
   const isTelefoneValid = telefone.replace(/\D/g, "").length >= 10;
   
-  const isFormValid = isNomeValid && isEnderecoValid && isTelefoneValid;
+  const isDadosValid = isNomeValid && isEnderecoValid && isTelefoneValid;
+  const isPagamentoValid = formaPagamento === "na_entrega" && detalhePagamento !== null;
 
-  const handleCheckout = () => {
-    if (!isFormValid) return;
+  const handleCreateOrder = async () => {
+    if (!isPagamentoValid) return;
+    
+    setIsSubmitting(true);
+    setSubmitError("");
+    
+    try {
+      const result = await criarPedido(
+        cart, 
+        { nome, telefone, endereco },
+        formaPagamento,
+        detalhePagamento,
+        observacoesGlobais
+      );
+      
+      setPedidoCodigo(result.codigo);
+      clearCart();
+      setStep("sucesso");
+    } catch (err: any) {
+      setSubmitError(err.message || "Erro ao processar pedido. Tente novamente.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-    let text = `*NOVO PEDIDO — INGARANDI BURGER!*\n\n`;
+  const handleWhatsAppFollowUp = () => {
+    let text = `*NOVO PEDIDO ${pedidoCodigo} — INGARANDI BURGER!*\n\n`;
     text += `*Cliente:* ${nome}\n`;
     text += `*Telefone:* ${telefone}\n`;
-    text += `*Endereço:* ${endereco}\n\n`;
+    text += `*Endereço:* ${endereco}\n`;
+    text += `*Pagamento:* Na entrega (${detalhePagamento})\n\n`;
     text += `*PEDIDO:*\n`;
 
     cart.forEach(c => {
@@ -71,17 +103,14 @@ export default function CheckoutModal() {
 
     const encoded = encodeURIComponent(text);
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encoded}`, '_blank');
-    
-    // Clear cart and show success view
-    clearCart();
-    setIsSent(true);
   };
 
   const handleClose = () => {
     setIsCheckoutOpen(false);
-    if (isSent) {
+    if (step === "sucesso") {
       setTimeout(() => {
-        setIsSent(false); // Reset for next time after animation
+        setStep("dados"); 
+        setPedidoCodigo("");
       }, 500);
     }
   };
@@ -104,7 +133,7 @@ export default function CheckoutModal() {
             exit={{ y: "100%", opacity: 0 }}
             className="relative bg-marrom-900 w-full md:max-w-xl max-h-[95vh] rounded-t-[32px] md:rounded-[32px] shadow-2xl flex flex-col overflow-hidden border border-creme/20 text-creme"
           >
-            {isSent ? (
+            {step === "sucesso" ? (
               <div className="p-12 flex flex-col items-center justify-center text-center h-[60vh] md:h-auto">
                 <motion.div 
                   initial={{ scale: 0 }}
@@ -113,17 +142,111 @@ export default function CheckoutModal() {
                 >
                   <CheckCircle size={80} strokeWidth={1.5} />
                 </motion.div>
-                <h2 className="font-display text-3xl text-amarelo italic uppercase mb-4">Pedido Enviado!</h2>
+                <h2 className="font-display text-4xl text-amarelo italic uppercase mb-2">{pedidoCodigo}</h2>
+                <h3 className="font-display text-2xl text-creme italic uppercase mb-4">Pedido Confirmado!</h3>
                 <p className="font-body text-creme/80 mb-10 max-w-sm">
-                  Agora é só finalizar a conversa com nosso atendente no WhatsApp. Seu pedido já está sendo preparado!
+                  Agora é só aguardar! Se quiser, você pode acompanhar seu pedido pelo nosso WhatsApp.
                 </p>
                 <button 
+                  onClick={handleWhatsAppFollowUp}
+                  className="bg-[#25D366] text-white font-bold tracking-widest uppercase py-4 px-8 rounded-xl shadow-lg hover:opacity-90 transition-opacity w-full mb-4 flex items-center justify-center gap-2"
+                >
+                  <Smartphone size={20} />
+                  ACOMPANHAR PELO WHATSAPP
+                </button>
+                <button 
                   onClick={handleClose}
-                  className="bg-laranja text-white font-bold tracking-widest uppercase py-4 px-8 rounded-xl shadow-lg hover:opacity-90 transition-opacity w-full"
+                  className="bg-marrom-900/50 border border-creme/20 text-creme font-bold tracking-widest uppercase py-4 px-8 rounded-xl hover:bg-white/5 transition-opacity w-full"
                 >
                   VOLTAR AO CARDÁPIO
                 </button>
               </div>
+            ) : step === "pagamento" ? (
+              <>
+                <div className="flex items-center justify-between p-6 border-b border-creme/10 bg-marrom-900 shrink-0 z-10">
+                  <h2 className="font-display text-2xl text-creme italic uppercase">PAGAMENTO</h2>
+                  <button 
+                    onClick={handleClose}
+                    className="w-10 h-10 bg-marrom-900 rounded-full border border-creme/20 flex items-center justify-center hover:bg-creme hover:text-marrom-900 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  {submitError && (
+                    <div className="bg-tomate/20 border border-tomate p-4 rounded-xl text-creme text-sm font-bold text-center">
+                      {submitError}
+                    </div>
+                  )}
+                  
+                  <div className="space-y-4">
+                     <button
+                        onClick={() => setFormaPagamento("na_entrega")}
+                        className={`w-full p-4 border rounded-xl flex items-center gap-4 transition-colors ${
+                          formaPagamento === "na_entrega" ? "bg-amarelo/10 border-amarelo text-amarelo" : "border-creme/20 text-creme"
+                        }`}
+                      >
+                        <Wallet size={24} />
+                        <span className="font-bold tracking-widest uppercase">Pagar na Entrega</span>
+                      </button>
+
+                      {formaPagamento === "na_entrega" && (
+                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="pl-10 space-y-3">
+                           <button 
+                             onClick={() => setDetalhePagamento("dinheiro")} 
+                             className={`w-full flex items-center gap-3 p-3 border rounded-xl text-sm font-bold tracking-widest uppercase transition-colors ${detalhePagamento === "dinheiro" ? "bg-white/10 border-creme text-white" : "border-creme/10 text-creme/60"}`}
+                           >
+                              <Banknote size={20} /> Dinheiro
+                           </button>
+                           <button 
+                             onClick={() => setDetalhePagamento("cartao")} 
+                             className={`w-full flex items-center gap-3 p-3 border rounded-xl text-sm font-bold tracking-widest uppercase transition-colors ${detalhePagamento === "cartao" ? "bg-white/10 border-creme text-white" : "border-creme/10 text-creme/60"}`}
+                           >
+                              <CreditCard size={20} /> Cartão
+                           </button>
+                           <button 
+                             onClick={() => setDetalhePagamento("pix")} 
+                             className={`w-full flex items-center gap-3 p-3 border rounded-xl text-sm font-bold tracking-widest uppercase transition-colors ${detalhePagamento === "pix" ? "bg-white/10 border-creme text-white" : "border-creme/10 text-creme/60"}`}
+                           >
+                              <Smartphone size={20} /> Pix
+                           </button>
+                        </motion.div>
+                      )}
+
+                      <button
+                        disabled
+                        className="w-full p-4 border border-creme/10 rounded-xl flex items-center justify-between opacity-50 cursor-not-allowed"
+                      >
+                        <div className="flex items-center gap-4 text-creme/50">
+                          <CreditCard size={24} />
+                          <span className="font-bold tracking-widest uppercase">Pagar Online</span>
+                        </div>
+                        <span className="bg-marrom-600 px-2 py-1 rounded text-[10px] font-bold text-creme">EM BREVE</span>
+                      </button>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-marrom-900 border-t border-creme/10 shrink-0 flex gap-4">
+                     <button 
+                        onClick={() => setStep("dados")}
+                        disabled={isSubmitting}
+                        className="font-bold tracking-widest uppercase text-creme hover:text-white px-4"
+                     >
+                       Voltar
+                     </button>
+                     <button 
+                        onClick={handleCreateOrder}
+                        disabled={!isPagamentoValid || isSubmitting}
+                        className={`flex-1 font-bold tracking-widest uppercase py-4 rounded-xl flex items-center justify-center transition-all ${
+                          isPagamentoValid && !isSubmitting
+                            ? "bg-alface text-white shadow-lg hover:opacity-90 cursor-pointer" 
+                            : "bg-marrom-900/50 border border-creme/10 text-creme/40 cursor-not-allowed"
+                        }`}
+                      >
+                        {isSubmitting ? "PROCESSANDO..." : `CONFIRMAR R$ ${total.toFixed(2).replace('.', ',')}`}
+                      </button>
+                </div>
+              </>
             ) : (
               <>
                 <div className="flex items-center justify-between p-6 border-b border-creme/10 bg-marrom-900 shrink-0 z-10">
@@ -248,18 +371,15 @@ export default function CheckoutModal() {
 
                 <div className="p-6 bg-marrom-900 border-t border-creme/10 shrink-0">
                    <button 
-                      onClick={handleCheckout}
-                      disabled={!isFormValid}
+                      onClick={() => setStep("pagamento")}
+                      disabled={!isDadosValid}
                       className={`w-full font-bold tracking-widest uppercase text-lg py-4 rounded-xl flex items-center justify-center gap-3 transition-all ${
-                        isFormValid 
-                          ? "bg-[#25D366] text-white shadow-lg hover:opacity-90 cursor-pointer" 
+                        isDadosValid 
+                          ? "bg-alface text-white shadow-lg hover:opacity-90 cursor-pointer" 
                           : "bg-marrom-900/50 border border-creme/10 text-creme/40 cursor-not-allowed"
                       }`}
                     >
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
-                      </svg>
-                      FINALIZAR R$ {total.toFixed(2).replace('.', ',')}
+                      CONTINUAR
                     </button>
                 </div>
               </>
