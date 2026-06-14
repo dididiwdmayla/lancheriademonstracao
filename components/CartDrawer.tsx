@@ -35,9 +35,6 @@ export default function CartDrawer() {
     setTimeout(() => setIsCheckoutOpen(true), 150);
   };
 
-  const lanchesNotInCart = menuData?.lanches.filter((l: any) => !cart.some((c) => c.item.id === l.id)) || [];
-  const suggestedLanche = lanchesNotInCart.length > 0 ? lanchesNotInCart[0] : null;
-
   return (
     <AnimatePresence>
       {isCartOpen && (
@@ -71,33 +68,6 @@ export default function CartDrawer() {
                 <X size={20} />
               </button>
             </div>
-
-            {/* Upsell Inline */}
-            {cart.length > 0 && suggestedLanche && (
-              <div className="bg-creme text-marrom-900 p-3 mx-6 mt-6 rounded-2xl flex items-center gap-3 shrink-0 shadow-lg relative overflow-hidden">
-                 <div className="absolute top-0 bottom-0 right-0 w-24 bg-gradient-to-l from-amarelo/20 to-transparent pointer-events-none" />
-                 <div className="w-12 h-12 bg-marrom-900/5 rounded-xl shrink-0 p-1 relative border border-marrom-900/10">
-                   <Image src={suggestedLanche.imagem} fill alt={suggestedLanche.nome} className="object-contain" />
-                 </div>
-                 <div className="flex-1 py-1">
-                   <p className="font-display text-sm italic uppercase leading-none mb-1">Que tal um {suggestedLanche.nome}?</p>
-                   <p className="font-mono text-xs text-alface font-bold">R$ {suggestedLanche.preco.toFixed(2).replace('.', ',')}</p>
-                 </div>
-                 <button 
-                   onClick={() => {
-                     // Need to select this burger in the customize sheet.
-                     setIsCartOpen(false);
-                     setTimeout(() => {
-                       // Tricky without context, so we'll fire an event
-                       window.dispatchEvent(new CustomEvent('open-customize', { detail: suggestedLanche }));
-                     }, 100);
-                   }}
-                   className="w-8 h-8 shrink-0 bg-marrom-900 text-amarelo rounded-full flex items-center justify-center hover:opacity-90 relative z-10"
-                 >
-                   <Plus size={16} />
-                 </button>
-              </div>
-            )}
 
             {/* Cart Items */}
             <div className="flex-1 overflow-y-auto p-6 font-body">

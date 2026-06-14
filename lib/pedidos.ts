@@ -4,8 +4,8 @@ import { CartItem } from "./menu";
 import menuData from "../public/assets/menu.json";
 
 export type FormaPagamento = "online" | "na_entrega";
-export type DetalhePagamentoEntrega = "dinheiro" | "cartao" | "pix" | null;
-export type PedidoStatus = "em_preparo" | "saiu_entrega" | "concluido" | "cancelado" | "aguardando_pagamento";
+export type DetalhePagamentoEntrega = string | null;
+export type PedidoStatus = "em_preparo" | "saiu_entrega" | "concluido" | "cancelado" | "aguardando_pagamento" | "pago";
 
 export interface DadosCliente {
   nome: string;
@@ -20,13 +20,26 @@ export const criarPedido = async (
   detalhePagamentoEntrega: DetalhePagamentoEntrega,
   observacoesGerais: string
 ) => {
-  // 1. Verify site status
-  const configDoc = await getDoc(doc(db, "config", "site"));
-  if (configDoc.exists()) {
-    const { siteAtivo, recebendoPedidos } = configDoc.data();
-    if (siteAtivo === false || recebendoPedidos === false) {
-      throw new Error("Estamos fechados no momento. Tente mais tarde!");
+  // 1. Verify site status with timeout for resilience
+  try {
+    const configDocContent = getDoc(doc(db, "config", "site"));
+    const configDoc = await Promise.race([
+      configDocContent,
+      new Promise<null>((r) => setTimeout(() => r(null), 4000))
+    ]);
+    
+    if (configDoc && configDoc.exists()) {
+      const { siteAtivo, recebendoPedidos } = configDoc.data();
+      if (siteAtivo === false || recebendoPedidos === false) {
+        throw new Error("Estamos fechados no momento. Tente mais tarde!");
+      }
     }
+  } catch (err: any) {
+    if (err.message === "Estamos fechados no momento. Tente mais tarde!") {
+      throw err;
+    }
+    console.error("Non-fatal config fetch error:", err);
+    // Move forward if offline to try adding the doc (it might queue or fail loudly there if fully offline)
   }
 
   // 2. Validate client data
@@ -114,7 +127,7 @@ export const criarPedido = async (
   const { setDoc } = await import("firebase/firestore");
   await setDoc(pedidoRef, novoPedido);
   
-  return { codigo, total };
+  return { codigo, total, docId: pedidoRef.id };
 };
 
 export const fecharPedidoNoClient = async (

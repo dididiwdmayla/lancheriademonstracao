@@ -1,21 +1,51 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, Clock } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import { useRouter } from "next/navigation";
 
 export default function Header() {
   const [scrolled, setScrolled] = useState(false);
   const { itemCount, setIsCartOpen } = useCart();
+  const [activeOrders, setActiveOrders] = useState<any[]>([]);
+  const router = useRouter();
+
+  const loadOrders = () => {
+    try {
+      const existing = JSON.parse(localStorage.getItem('ingarandi-meus-pedidos') || '[]');
+      const recent = existing.filter((p: any) => Date.now() - p.criadoEm < 24 * 60 * 60 * 1000);
+      setActiveOrders(recent);
+      if (existing.length !== recent.length) {
+        localStorage.setItem('ingarandi-meus-pedidos', JSON.stringify(recent));
+      }
+    } catch {
+      setActiveOrders([]);
+    }
+  };
 
   useEffect(() => {
+    loadOrders();
     const handleScroll = () => {
       setScrolled(window.scrollY > 50);
     };
     
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    window.addEventListener("order-updated", loadOrders);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("order-updated", loadOrders);
+    };
   }, []);
+
+  const handleOrdersClick = () => {
+    if (activeOrders.length === 1) {
+      router.push(`/pedido/${activeOrders[0].docId}`);
+    } else {
+      // For now, if multiple, go to the newest one.
+      router.push(`/pedido/${activeOrders[activeOrders.length - 1].docId}`);
+    }
+  };
 
   return (
     <header className={`fixed top-0 left-0 right-0 z-40 transition-colors duration-300 ${scrolled ? 'bg-marrom-900/40 backdrop-blur-md border-b border-creme/10' : 'bg-transparent'}`}>
@@ -30,10 +60,21 @@ export default function Header() {
           </div>
         </div>
 
-        <div className="flex-1 flex justify-end">
+        <div className="flex-1 flex justify-end gap-3 items-center">
+          {activeOrders.length > 0 && (
+            <button 
+              onClick={handleOrdersClick}
+              className="relative flex items-center gap-2 bg-marrom-900/80 backdrop-blur-md border border-amarelo/30 px-3 py-2 rounded-full text-amarelo font-bold text-xs uppercase tracking-widest hover:bg-marrom-900 transition-colors"
+            >
+              <div className="w-2 h-2 rounded-full bg-laranja animate-pulse shrink-0" />
+              <span className="hidden sm:inline">Meu Pedido</span>
+              <Clock size={16} className="sm:hidden" />
+            </button>
+          )}
+
           <button 
             onClick={() => setIsCartOpen(true)}
-            className="relative bg-amarelo p-3 rounded-full text-marrom-900 shadow-lg shadow-black/20 hover:scale-105 transition-all"
+            className="relative bg-amarelo p-3 rounded-full text-marrom-900 shadow-[0_4px_14px_0_rgba(255,217,61,0.39)] hover:scale-105 transition-all"
             aria-label="Abrir carrinho"
           >
             <ShoppingCart size={20} />

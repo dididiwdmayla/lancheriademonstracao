@@ -1,11 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, useMotionValue, useSpring, useMotionTemplate, useReducedMotion, AnimatePresence } from "motion/react";
 import { Lanche } from "@/lib/menu";
 
-const HOVER_MESSAGE = "JÁ COMERAM ESSE! 😋";
+export const HOVER_PHRASES = [
+  "CUIDADO, LANCHE VICIANTE!",
+  "PEDE LOGO, É UMA DELÍCIA!",
+  "PEDE O SEU, QUE ESSE JÁ É MEU 😏"
+];
 
 type Props = {
   burger: Lanche;
@@ -18,16 +22,29 @@ export default function BurgerCard({ burger, onSelect }: Props) {
   const mouseY = useMotionValue(0);
   const radius = useMotionValue(0);
   const [isLensActive, setIsLensActive] = useState(false);
+  const [currentPhrase, setCurrentPhrase] = useState(HOVER_PHRASES[0]);
+  const lastPhraseIndex = useRef(0);
   
   // High stiffness for fast, snappy but smooth radius animation
   const smoothRadius = useSpring(radius, { stiffness: 400, damping: 30 });
   const clipPath = useMotionTemplate`circle(${shouldReduceMotion ? radius : smoothRadius}px at ${mouseX}px ${mouseY}px)`;
+
+  const shufflePhrase = () => {
+    let nextIndex;
+    do {
+       nextIndex = Math.floor(Math.random() * HOVER_PHRASES.length);
+    } while (nextIndex === lastPhraseIndex.current);
+    
+    lastPhraseIndex.current = nextIndex;
+    setCurrentPhrase(HOVER_PHRASES[nextIndex]);
+  };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     // For touch devices, activate lens temporarily on tap
     if (e.pointerType === "touch" || e.pointerType === "pen") {
       if (isLensActive) return; // Prevent overlapping taps
       
+      shufflePhrase();
       const rect = e.currentTarget.getBoundingClientRect();
       mouseX.set(e.clientX - rect.left);
       mouseY.set(e.clientY - rect.top);
@@ -51,6 +68,7 @@ export default function BurgerCard({ burger, onSelect }: Props) {
 
   const handlePointerEnter = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === "touch" || e.pointerType === "pen") return;
+    shufflePhrase();
     radius.set(56);
     setIsLensActive(true);
   };
@@ -101,7 +119,7 @@ export default function BurgerCard({ burger, onSelect }: Props) {
                 className="font-display text-amarelo text-sm md:text-base rotate-[-6deg]"
                 style={{ WebkitTextStroke: "1px #2D1810" }}
               >
-                {HOVER_MESSAGE}
+                {currentPhrase}
               </span>
             </motion.div>
           )}

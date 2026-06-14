@@ -17,6 +17,7 @@ export default function AddedToCartToast({ itemName, onClose }: AddedToCartToast
   useEffect(() => {
     if (!itemName) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setProgress(0);
     const duration = 4000;
     const interval = 40; // update roughly 100 times over 4 seconds
@@ -40,12 +41,12 @@ export default function AddedToCartToast({ itemName, onClose }: AddedToCartToast
     <AnimatePresence>
       {itemName && (
         <motion.div
-          initial={{ y: 100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 100, opacity: 0 }}
-          className="fixed bottom-6 left-0 right-0 z-[60] flex justify-center pointer-events-none px-4"
+           initial={{ x: 100, opacity: 0, scale: 0.95 }}
+           animate={{ x: 0, opacity: 1, scale: 1 }}
+           exit={{ x: 100, opacity: 0, scale: 0.95 }}
+           className="w-full max-w-[320px] pointer-events-auto"
         >
-          <div className="bg-creme rounded-[24px] p-4 flex flex-col md:flex-row md:items-center gap-4 shadow-2xl pointer-events-auto border border-creme/5 w-full max-w-sm overflow-hidden relative">
+          <div className="bg-creme rounded-[24px] p-4 flex flex-col md:flex-row md:items-center gap-4 shadow-2xl border border-creme/5 overflow-hidden relative">
             
             {/* Progress Bar */}
             <div className="absolute bottom-0 left-0 h-1 bg-marrom-900/10 w-full">

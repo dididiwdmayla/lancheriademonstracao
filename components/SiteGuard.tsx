@@ -16,6 +16,12 @@ export default function SiteGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const timeoutId = setTimeout(() => {
+      if (siteAtivo === null) {
+        setSiteAtivo(true); // Default to true if DB takes too long
+      }
+    }, 4000);
+
     const unsub = onSnapshot(doc(db, "config", "site"), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -23,10 +29,16 @@ export default function SiteGuard({ children }: { children: React.ReactNode }) {
       } else {
         setSiteAtivo(true);
       }
+    }, (err) => {
+      console.error("Firestore error in site config:", err);
+      setSiteAtivo(true); // Proceed if offline
     });
 
-    return () => unsub();
-  }, [pathname]);
+    return () => {
+      clearTimeout(timeoutId);
+      unsub();
+    };
+  }, [pathname, siteAtivo]);
 
   if (siteAtivo === null) {
     return <div className="min-h-screen bg-marrom-900" />; // Empty state until we know

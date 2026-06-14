@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, ChevronDown, ChevronUp, CheckCircle, Wallet, CreditCard, Banknote, Smartphone } from "lucide-react";
+import { X, ChevronDown, ChevronUp, CheckCircle, Wallet, CreditCard, Banknote, Smartphone, Copy, Loader2 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { WHATSAPP_NUMBER } from "@/lib/menu";
 import { criarPedido, FormaPagamento, DetalhePagamentoEntrega } from "@/lib/pedidos";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function CheckoutModal() {
   const { cart, total, isCheckoutOpen, setIsCheckoutOpen, clearCart } = useCart();
   
-  const [step, setStep] = useState<"dados" | "pagamento" | "sucesso">("dados");
+  const [step, setStep] = useState<"dados" | "pagamento" | "pix" | "sucesso">("dados");
   const [nome, setNome] = useState("");
   const [endereco, setEndereco] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -20,9 +22,12 @@ export default function CheckoutModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [pedidoCodigo, setPedidoCodigo] = useState<string>("");
+  const [pixData, setPixData] = useState<{qr_code_base64: string, qr_code: string, paymentId: string, docId: string} | null>(null);
+  const [copiedPix, setCopiedPix] = useState(false);
 
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("na_entrega");
-  const [detalhePagamento, setDetalhePagamento] = useState<DetalhePagamentoEntrega>(null);
+  const [detalhePagamento, setDetalhePagamento] = useState<string | null>(null);
+  const [bandeiraCartao, setBandeiraCartao] = useState<string | null>(null);
 
   const formatPhone = (val: string) => {
     const raw = val.replace(/\D/g, "");
@@ -38,7 +43,9 @@ export default function CheckoutModal() {
   const isTelefoneValid = telefone.replace(/\D/g, "").length >= 10;
   
   const isDadosValid = isNomeValid && isEnderecoValid && isTelefoneValid;
-  const isPagamentoValid = formaPagamento === "na_entrega" && detalhePagamento !== null;
+  const isPagamentoValid = 
+    (formaPagamento === "na_entrega" && detalhePagamento !== null && (detalhePagamento !== "cartao" || bandeiraCartao !== null)) ||
+    (formaPagamento === "online" && (detalhePagamento === "pix" || detalhePagamento === "cartao"));
 
   const handleCreateOrder = async () => {
     if (!isPagamentoValid) return;
@@ -47,19 +54,74 @@ export default function CheckoutModal() {
     setSubmitError("");
     
     try {
+      const finalDetalhe = formaPagamento === "na_entrega" && detalhePagamento === "cartao" && bandeiraCartao ? `cartão - ${bandeiraCartao}` : detalhePagamento;
+      
       const result = await criarPedido(
         cart, 
         { nome, telefone, endereco },
         formaPagamento,
-        detalhePagamento,
+        finalDetalhe,
         observacoesGlobais
       );
       
       setPedidoCodigo(result.codigo);
+      
+      // Save order in local storage for tracking
+      try {
+        const existing = JSON.parse(localStorage.getItem('ingarandi-meus-pedidos') || '[]');
+        existing.push({ docId: result.docId, codigo: result.codigo, criadoEm: Date.now() });
+        // Cleanup old orders (older than 24h)
+        const recent = existing.filter((p: any) => Date.now() - p.criadoEm < 24 * 60 * 60 * 1000);
+        localStorage.setItem('ingarandi-meus-pedidos', JSON.stringify(recent));
+        // Dispatch event to update Header
+        window.dispatchEvent(new Event('order-updated'));
+      } catch (err) {
+        console.error("Local storage error", err);
+      }
+
+      if (formaPagamento === "online") {
+         const itensParaServidor = cart.map(c => ({ id: c.item.id, quantidade: c.quantidade, adicionais: c.adicionais.map(a => ({ id: a.item.id, qtd: a.quantidade })) }));
+
+         if (detalhePagamento === "pix") {
+            const res = await fetch("/api/pagamento/pix", {
+               method: "POST",
+               body: JSON.stringify({ docId: result.docId, itens: itensParaServidor, cliente: { nome } })
+            });
+
+            if (!res.ok) {
+               throw new Error("Não conseguimos iniciar o pagamento agora. Tente de novo ou escolha pagar na entrega.");
+            }
+            
+            const pixD = await res.json();
+            setPixData({ ...pixD, docId: result.docId });
+            clearCart();
+            setStep("pix");
+            setIsSubmitting(false);
+            return;
+         } else if (detalhePagamento === "cartao") {
+            const res = await fetch("/api/pagamento/cartao", {
+               method: "POST",
+               body: JSON.stringify({ docId: result.docId, codigo: result.codigo, itens: itensParaServidor, cliente: { nome } })
+            });
+            if (!res.ok) {
+               throw new Error("Não conseguimos iniciar o pagamento agora. Tente de novo ou escolha pagar na entrega.");
+            }
+            const cardD = await res.json();
+            clearCart();
+            window.location.href = cardD.init_point;
+            return;
+         }
+      }
+
       clearCart();
       setStep("sucesso");
     } catch (err: any) {
-      setSubmitError(err.message || "Erro ao processar pedido. Tente novamente.");
+      console.error("Erro ao criar pedido:", err);
+      if (err.message?.includes("offline") || err.message?.includes("Failed to get document") || err.message?.includes("backend") || err.code === "unavailable") {
+        setSubmitError("Não conseguimos enviar seu pedido agora. Verifique sua conexão e tente de novo.");
+      } else {
+        setSubmitError(err.message || "Erro ao processar pedido. Tente novamente.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -70,7 +132,7 @@ export default function CheckoutModal() {
     text += `*Cliente:* ${nome}\n`;
     text += `*Telefone:* ${telefone}\n`;
     text += `*Endereço:* ${endereco}\n`;
-    text += `*Pagamento:* Na entrega (${detalhePagamento})\n\n`;
+    text += `*Pagamento:* Na entrega (${detalhePagamento === 'cartao' ? `Cartão - ${bandeiraCartao}` : detalhePagamento})\n\n`;
     text += `*PEDIDO:*\n`;
 
     cart.forEach(c => {
@@ -114,6 +176,21 @@ export default function CheckoutModal() {
       }, 500);
     }
   };
+
+  useEffect(() => {
+    if (step === "pix" && pixData?.docId) {
+      const unsub = onSnapshot(doc(db, "pedidos", pixData.docId), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.status === "pago") {
+            setStep("sucesso");
+            setPedidoCodigo(data.codigo || "");
+          }
+        }
+      });
+      return () => unsub();
+    }
+  }, [step, pixData?.docId]);
 
   return (
     <AnimatePresence>
@@ -198,12 +275,39 @@ export default function CheckoutModal() {
                            >
                               <Banknote size={20} /> Dinheiro
                            </button>
-                           <button 
-                             onClick={() => setDetalhePagamento("cartao")} 
-                             className={`w-full flex items-center gap-3 p-3 border rounded-xl text-sm font-bold tracking-widest uppercase transition-colors ${detalhePagamento === "cartao" ? "bg-white/10 border-creme text-white" : "border-creme/10 text-creme/60"}`}
-                           >
-                              <CreditCard size={20} /> Cartão
-                           </button>
+                           
+                           <div>
+                             <button 
+                               onClick={() => setDetalhePagamento("cartao")} 
+                               className={`w-full flex items-center gap-3 p-3 border rounded-xl text-sm font-bold tracking-widest uppercase transition-colors ${detalhePagamento === "cartao" ? "bg-white/10 border-creme text-white" : "border-creme/10 text-creme/60"}`}
+                             >
+                                <CreditCard size={20} /> Cartão
+                             </button>
+                             <AnimatePresence>
+                               {detalhePagamento === "cartao" && (
+                                 <motion.div 
+                                    initial={{ height: 0, opacity: 0 }} 
+                                    animate={{ height: "auto", opacity: 1 }} 
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="overflow-hidden mt-3"
+                                 >
+                                   <p className="text-xs font-bold tracking-widest uppercase mb-2 text-creme/80">Selecione a bandeira:</p>
+                                   <div className="flex flex-wrap gap-2">
+                                     {["Visa", "Mastercard", "Elo", "Hipercard", "Outra"].map(bandeira => (
+                                        <button
+                                          key={bandeira}
+                                          onClick={() => setBandeiraCartao(bandeira)}
+                                          className={`px-4 py-2 rounded-full border text-xs font-bold tracking-widest uppercase transition-colors ${bandeiraCartao === bandeira ? "bg-amarelo border-amarelo text-marrom-900" : "border-creme/20 text-creme/60 hover:border-amarelo hover:text-amarelo"}`}
+                                        >
+                                          {bandeira}
+                                        </button>
+                                     ))}
+                                   </div>
+                                 </motion.div>
+                               )}
+                             </AnimatePresence>
+                           </div>
+
                            <button 
                              onClick={() => setDetalhePagamento("pix")} 
                              className={`w-full flex items-center gap-3 p-3 border rounded-xl text-sm font-bold tracking-widest uppercase transition-colors ${detalhePagamento === "pix" ? "bg-white/10 border-creme text-white" : "border-creme/10 text-creme/60"}`}
@@ -213,15 +317,34 @@ export default function CheckoutModal() {
                         </motion.div>
                       )}
 
+                      {formaPagamento === "online" && (
+                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="pl-10 space-y-3">
+                           <button 
+                             onClick={() => setDetalhePagamento("pix")} 
+                             className={`w-full flex items-center gap-3 p-3 border rounded-xl text-sm font-bold tracking-widest uppercase transition-colors ${detalhePagamento === "pix" ? "bg-white/10 border-creme text-white" : "border-creme/10 text-creme/60"}`}
+                           >
+                              <Smartphone size={20} /> Pix
+                           </button>
+                           <button 
+                             onClick={() => setDetalhePagamento("cartao")} 
+                             className={`w-full flex items-center gap-3 p-3 border rounded-xl text-sm font-bold tracking-widest uppercase transition-colors ${detalhePagamento === "cartao" ? "bg-white/10 border-creme text-white" : "border-creme/10 text-creme/60"}`}
+                           >
+                              <CreditCard size={20} /> Cartão de Crédito
+                           </button>
+                        </motion.div>
+                      )}
+
                       <button
-                        disabled
-                        className="w-full p-4 border border-creme/10 rounded-xl flex items-center justify-between opacity-50 cursor-not-allowed"
+                        onClick={() => {
+                          setFormaPagamento("online");
+                          setDetalhePagamento("pix");
+                        }}
+                        className={`w-full p-4 border rounded-xl flex items-center gap-4 transition-colors ${
+                          formaPagamento === "online" ? "bg-amarelo/10 border-amarelo text-amarelo" : "border-creme/20 text-creme"
+                        }`}
                       >
-                        <div className="flex items-center gap-4 text-creme/50">
-                          <CreditCard size={24} />
-                          <span className="font-bold tracking-widest uppercase">Pagar Online</span>
-                        </div>
-                        <span className="bg-marrom-600 px-2 py-1 rounded text-[10px] font-bold text-creme">EM BREVE</span>
+                        <CreditCard size={24} />
+                        <span className="font-bold tracking-widest uppercase">Pagar Online</span>
                       </button>
                   </div>
                 </div>
@@ -237,16 +360,50 @@ export default function CheckoutModal() {
                      <button 
                         onClick={handleCreateOrder}
                         disabled={!isPagamentoValid || isSubmitting}
-                        className={`flex-1 font-bold tracking-widest uppercase py-4 rounded-xl flex items-center justify-center transition-all ${
+                        className={`flex-1 font-bold tracking-widest uppercase py-4 rounded-xl flex items-center justify-center gap-2 transition-all ${
                           isPagamentoValid && !isSubmitting
                             ? "bg-alface text-white shadow-lg hover:opacity-90 cursor-pointer" 
                             : "bg-marrom-900/50 border border-creme/10 text-creme/40 cursor-not-allowed"
                         }`}
                       >
-                        {isSubmitting ? "PROCESSANDO..." : `CONFIRMAR R$ ${total.toFixed(2).replace('.', ',')}`}
+                        {isSubmitting && <Loader2 size={20} className="animate-spin" />}
+                        {isSubmitting ? "PROCESSANDO..." : formaPagamento === "online" && detalhePagamento === "cartao" ? "IR PARA PAGAMENTO" : `CONFIRMAR R$ ${total.toFixed(2).replace('.', ',')}`}
                       </button>
                 </div>
               </>
+            ) : step === "pix" && pixData ? (
+              <div className="flex flex-col h-full bg-marrom-900 p-6 md:p-12 items-center text-center">
+                 <h2 className="font-display text-4xl text-amarelo italic uppercase mb-2">Pague com Pix</h2>
+                 <p className="font-body text-creme/80 mb-6">Escaneie o QR Code ou copie o código abaixo para pagar via Pix no seu banco.</p>
+                 
+                 <div className="bg-white p-4 rounded-3xl w-64 h-64 flex items-center justify-center mb-6">
+                     <img src={`data:image/png;base64,${pixData.qr_code_base64}`} alt="QR Code Pix" className="w-full h-full object-contain" />
+                 </div>
+
+                 <button 
+                    onClick={() => {
+                        navigator.clipboard.writeText(pixData.qr_code);
+                        setCopiedPix(true);
+                        setTimeout(() => setCopiedPix(false), 2000);
+                    }}
+                    className="w-full max-w-sm flex items-center justify-center gap-2 bg-amarelo text-marrom-900 font-bold uppercase tracking-widest py-4 rounded-xl hover:opacity-90 transition-all mb-8 shadow-[0_4px_14px_0_rgba(255,217,61,0.39)]"
+                 >
+                    <Copy size={20} />
+                    {copiedPix ? "COPIADO!" : "COPIAR CÓDIGO PIX"}
+                 </button>
+
+                 <div className="flex flex-col items-center gap-3">
+                    <Loader2 size={32} className="text-alface animate-spin" />
+                    <span className="font-bold text-alface uppercase tracking-widest text-sm">Aguardando confirmação de pagamento...</span>
+                 </div>
+                 
+                 <button 
+                    onClick={handleClose}
+                    className="mt-8 text-creme/60 font-bold uppercase tracking-widest text-sm underline hover:text-creme"
+                 >
+                    Cancelar e voltar
+                 </button>
+              </div>
             ) : (
               <>
                 <div className="flex items-center justify-between p-6 border-b border-creme/10 bg-marrom-900 shrink-0 z-10">

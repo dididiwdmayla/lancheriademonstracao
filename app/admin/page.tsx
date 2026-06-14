@@ -3,11 +3,11 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { collection, query, orderBy, onSnapshot, doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, doc, getDoc, updateDoc, limit } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { LogOut, AlertTriangle, PlayCircle } from "lucide-react";
 
-type PedidoStatus = "em_preparo" | "saiu_entrega" | "concluido" | "cancelado" | "aguardando_pagamento";
+type PedidoStatus = "em_preparo" | "saiu_entrega" | "concluido" | "cancelado" | "aguardando_pagamento" | "pago";
 
 function formatStatus(status: PedidoStatus) {
   switch(status) {
@@ -15,7 +15,9 @@ function formatStatus(status: PedidoStatus) {
     case "saiu_entrega": return "SAIU PRA ENTREGA";
     case "concluido": return "CONCLUÍDO";
     case "cancelado": return "CANCELADO";
-    case "aguardando_pagamento": return "AGUARDANDO PAGAMENTO";
+    case "aguardando_pagamento": return "AGUARDANDO PIX/CARTÃO";
+    case "pago": return "PAGO — ONLINE";
+    default: return status;
   }
 }
 
@@ -25,7 +27,9 @@ function getStatusColor(status: PedidoStatus) {
     case "saiu_entrega": return "bg-laranja text-white";
     case "concluido": return "bg-alface text-white";
     case "cancelado": return "bg-tomate text-white";
-    case "aguardando_pagamento": return "bg-marrom-600 text-white";
+    case "aguardando_pagamento": return "bg-marrom-600/20 text-marrom-900";
+    case "pago": return "bg-alface text-white shadow min-w-[max-content]";
+    default: return "bg-white text-marrom-900 border";
   }
 }
 
@@ -37,6 +41,8 @@ export default function AdminDashboard() {
   const [siteAtivo, setSiteAtivo] = useState(true);
   const [recebendoPedidos, setRecebendoPedidos] = useState(true);
   const [filter, setFilter] = useState<"todos" | PedidoStatus>("todos");
+  const [isOffline, setIsOffline] = useState(false);
+  const [docLimit, setDocLimit] = useState(100);
   
   const [showKillConfirm, setShowKillConfirm] = useState(false);
   const [killInput, setKillInput] = useState("");
@@ -61,32 +67,54 @@ export default function AdminDashboard() {
 
     // config/site listener
     const unsubConfig = onSnapshot(doc(db, "config", "site"), (docSnap) => {
+      setIsOffline(false);
       if (docSnap.exists()) {
         const data = docSnap.data();
         setSiteAtivo(data.siteAtivo ?? true);
         setRecebendoPedidos(data.recebendoPedidos ?? true);
       }
+    }, (err) => {
+      setIsOffline(true);
+      console.error(err);
     });
 
     // pedidos listener
-    const q = query(collection(db, "pedidos"), orderBy("criadoEm", "desc"));
+    const q = query(collection(db, "pedidos"), orderBy("criadoEm", "desc"), limit(docLimit));
     const unsubPedidos = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setIsOffline(false);
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
       
       // Sound logic
-      if (docs.length > lastOrderCountRef.current && lastOrderCountRef.current > 0 && soundEnabled) {
-        playAlertSound();
+      if (soundEnabled) {
+          snapshot.docChanges().forEach((change) => {
+             const data = change.doc.data();
+             if (change.type === "added") {
+                // Toca som se for pedido já em preparo (pagamento na entrega) 
+                // ou se vir já pago no online (improvável mas possível)
+                if (data.status === "em_preparo" || data.status === "pago") {
+                    playAlertSound();
+                }
+             } else if (change.type === "modified") {
+                // Toca som se o status mudou para 'pago'
+                if (data.status === "pago") {
+                    playAlertSound();
+                }
+             }
+          });
       }
       lastOrderCountRef.current = docs.length;
       
       setPedidos(docs);
+    }, (err) => {
+      setIsOffline(true);
+      console.error(err);
     });
 
     return () => {
       unsubConfig();
       unsubPedidos();
     };
-  }, [loadingObj, soundEnabled]);
+  }, [loadingObj, soundEnabled, docLimit]);
 
   const initAudio = () => {
     if (!audioContextRef.current) {
@@ -152,6 +180,11 @@ export default function AdminDashboard() {
            <p className="text-xs font-mono opacity-60">Operação em Tempo Real</p>
         </div>
         <div className="flex items-center gap-4">
+           {isOffline && (
+             <div className="bg-tomate text-white px-3 py-1.5 rounded text-xs font-bold uppercase animate-pulse">
+               Reconectando...
+             </div>
+           )}
            {!soundEnabled && (
              <button onClick={initAudio} className="flex items-center gap-2 bg-amarelo text-marrom-900 px-3 py-1.5 rounded uppercase font-bold text-xs">
                 <PlayCircle size={16} /> Ativar Som
@@ -234,7 +267,7 @@ export default function AdminDashboard() {
         {/* Board */}
         <section>
           <div className="flex gap-2 overflow-x-auto pb-4 hide-scrollbar">
-             {["todos", "em_preparo", "saiu_entrega", "concluido", "cancelado"].map((status: any) => (
+             {["todos", "aguardando_pagamento", "pago", "em_preparo", "saiu_entrega", "concluido", "cancelado"].map((status: any) => (
                 <button 
                   key={status}
                   onClick={() => setFilter(status)}
@@ -271,11 +304,16 @@ export default function AdminDashboard() {
                      <p className="font-bold capitalize">{pedido.cliente.nome}</p>
                      <p className="font-mono opacity-80 mb-1">{pedido.cliente.telefone}</p>
                      <p className="opacity-80">{pedido.cliente.endereco}</p>
-                     <div className="mt-2 pt-2 border-t border-marrom-900/10">
-                       <span className="font-bold text-xs uppercase tracking-widest text-marrom-900/60">Pagamento: </span>
-                       <span className="font-bold uppercase text-xs">
-                          {pedido.formaPagamento === "na_entrega" ? `Na entrega (${pedido.detalhePagamentoEntrega})` : "Online"}
-                       </span>
+                     <div className="mt-2 pt-2 border-t border-marrom-900/10 flex items-center justify-between">
+                       <div>
+                         <span className="font-bold text-xs uppercase tracking-widest text-marrom-900/60">Pagamento: </span>
+                         <span className="font-bold uppercase text-xs">
+                            {pedido.formaPagamento === "na_entrega" ? `NA ENTREGA — ${pedido.detalhePagamentoEntrega}`.toUpperCase() : "ONLINE"}
+                         </span>
+                       </div>
+                       {pedido.mercadoPago?.linkComprovante && (
+                           <a href={pedido.mercadoPago.linkComprovante} target="_blank" rel="noreferrer" className="text-xs font-bold text-alface underline">VER COMPROVANTE</a>
+                       )}
                      </div>
                   </div>
 
@@ -301,14 +339,20 @@ export default function AdminDashboard() {
 
                   {/* Actions */}
                   <div className="grid grid-cols-2 gap-2 mt-auto">
+                     {pedido.status === "pago" && (
+                        <button onClick={() => updateStatus(pedido.id, "em_preparo")} className="col-span-2 bg-amarelo text-marrom-900 py-2 rounded-lg font-bold uppercase tracking-widest text-xs">Marcar "Em Preparo"</button>
+                     )}
                      {pedido.status === "em_preparo" && (
                         <button onClick={() => updateStatus(pedido.id, "saiu_entrega")} className="col-span-2 bg-laranja text-white py-2 rounded-lg font-bold uppercase tracking-widest text-xs">Marcar "Saiu p/ Entrega"</button>
                      )}
                      {pedido.status === "saiu_entrega" && (
                         <button onClick={() => updateStatus(pedido.id, "concluido")} className="col-span-2 bg-alface text-white py-2 rounded-lg font-bold uppercase tracking-widest text-xs">Marcar "Concluído"</button>
                      )}
-                     {pedido.status !== "cancelado" && pedido.status !== "concluido" && (
+                     {pedido.status !== "cancelado" && pedido.status !== "concluido" && pedido.status !== "aguardando_pagamento" && (
                         <button onClick={() => { if(confirm("Deseja realmente cancelar este pedido?")) updateStatus(pedido.id, "cancelado") }} className="col-span-2 bg-marrom-900/10 text-tomate py-2 rounded-lg font-bold uppercase tracking-widest text-xs">Cancelar Pedido</button>
+                     )}
+                     {pedido.status === "aguardando_pagamento" && (
+                        <button onClick={() => { if(confirm("Deseja cancelar a aguardo deste pagamento online?")) updateStatus(pedido.id, "cancelado") }} className="col-span-2 bg-marrom-900/10 text-tomate py-2 rounded-lg font-bold uppercase tracking-widest text-xs">Cancelar</button>
                      )}
                   </div>
                </div>
@@ -319,6 +363,17 @@ export default function AdminDashboard() {
                </div>
              )}
           </div>
+          
+          {pedidos.length >= docLimit && (
+            <div className="mt-8 flex justify-center">
+              <button 
+                 onClick={() => setDocLimit(prev => prev + 100)}
+                 className="bg-marrom-900 text-creme px-6 py-3 rounded-full font-bold uppercase tracking-widest text-xs hover:opacity-90"
+              >
+                 Carregar mais pedidos antigos
+              </button>
+            </div>
+          )}
         </section>
       </main>
     </div>

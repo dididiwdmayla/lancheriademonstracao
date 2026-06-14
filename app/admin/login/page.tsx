@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { signInWithEmailAndPassword, onAuthStateChanged, createUserWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 
@@ -21,23 +21,6 @@ export default function AdminLogin() {
     return () => unsubscribe();
   }, [router]);
 
-  // REMOVER APÓS PRIMEIRO USO
-  const handleSetup = async () => {
-    setLoading(true);
-    try {
-      await createUserWithEmailAndPassword(auth, "willmendes14@outlook.com", "diego236");
-      router.push("/admin");
-    } catch (err: any) {
-      if (err.code === "auth/email-already-in-use") {
-        setError("Conta já existe. Por favor, faça login normalmente.");
-      } else {
-        setError("Erro ao criar conta: " + err.message);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -47,6 +30,7 @@ export default function AdminLogin() {
       await signInWithEmailAndPassword(auth, email, password);
       router.push("/admin");
     } catch (err: any) {
+      console.error(err);
       setError("Email ou senha inválidos.");
     } finally {
       setLoading(false);
@@ -102,17 +86,6 @@ export default function AdminLogin() {
             {loading ? "Entrando..." : "Acessar Painel"}
           </button>
         </form>
-
-        <div className="mt-8 pt-6 border-t border-marrom-900/10 text-center">
-          <p className="text-xs text-marrom-600 mb-2">Primeiro acesso?</p>
-          <button 
-            onClick={handleSetup}
-            disabled={loading}
-            className="text-xs font-bold text-marrom-900 underline hover:text-amarelo"
-          >
-            Configuração inicial (Criar admin)
-          </button>
-        </div>
       </div>
     </main>
   );

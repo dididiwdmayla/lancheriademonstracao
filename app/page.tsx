@@ -10,6 +10,7 @@ import CustomizeSheet from "@/components/CustomizeSheet";
 import CartDrawer from "@/components/CartDrawer";
 import CheckoutModal from "@/components/CheckoutModal";
 import AddedToCartToast from "@/components/AddedToCartToast";
+import UpsellToast from "@/components/UpsellToast";
 import Footer from "@/components/Footer";
 import DecorativeElement from "@/components/DecorativeElement";
 
@@ -21,7 +22,9 @@ export default function Home() {
   const { data, loading, error, refetch } = useMenu();
   const [selectedBurger, setSelectedBurger] = useState<Lanche | null>(null);
   
-  const { lastAddedItemName, setLastAddedItemName } = useCart();
+  const { cart, lastAddedItemName, setLastAddedItemName } = useCart();
+  const [upsellItem, setUpsellItem] = useState<Lanche | null>(null);
+  const [hasUpselled, setHasUpselled] = useState(false);
 
   useEffect(() => {
     const handleOpenCustomize = (e: any) => {
@@ -30,6 +33,19 @@ export default function Home() {
     window.addEventListener("open-customize", handleOpenCustomize);
     return () => window.removeEventListener("open-customize", handleOpenCustomize);
   }, []);
+
+  // Watch for recent additions and find upsell
+  useEffect(() => {
+    if (lastAddedItemName && !hasUpselled && data) {
+      const missingLanches = data.lanches.filter((l) => !cart.some((c) => c.item.id === l.id));
+      if (missingLanches.length > 0) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setUpsellItem(missingLanches[0]);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setHasUpselled(true);
+      }
+    }
+  }, [lastAddedItemName, hasUpselled, data, cart]);
 
   if (loading) {
     return (
@@ -116,10 +132,26 @@ export default function Home() {
         onAdded={() => {}} // Now handled globally via context
       />
       
-      <AddedToCartToast 
-         itemName={lastAddedItemName} 
-         onClose={() => setLastAddedItemName(null)} 
-      />
+      {/* Toast Stack */}
+      <div 
+        className="fixed right-0 z-[60] px-4 flex flex-col items-end justify-end gap-3 pointer-events-none transition-all duration-300" 
+        style={{ bottom: "max(96px, env(safe-area-inset-bottom))" }} // Lifted above floating cart button
+      >
+         {upsellItem && lastAddedItemName && (
+            <UpsellToast 
+               suggestedLanche={upsellItem}
+               onAccept={() => {
+                 setSelectedBurger(upsellItem);
+                 setUpsellItem(null);
+               }}
+               onClose={() => setUpsellItem(null)}
+            />
+         )}
+         <AddedToCartToast 
+            itemName={lastAddedItemName} 
+            onClose={() => setLastAddedItemName(null)} 
+         />
+      </div>
 
       <CartDrawer />
       <CheckoutModal />

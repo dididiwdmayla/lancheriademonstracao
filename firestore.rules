@@ -2,7 +2,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Allow user to write to pedidos if the data represents a valid new order
+    // A privacidade do modelo de acompanhamento de pedido depende do ID não-adivinhável do Firestore (20 caracteres aleatórios)
+    // Isso é o mesmo padrão de links de rastreio de logística. Assim garantimos a privacidade sem pedir login ao cliente.
     match /pedidos/{pedidoId} {
       allow create: if true 
         && request.resource.data.keys().hasAll(['codigo', 'status', 'formaPagamento', 'detalhePagamentoEntrega', 'cliente', 'itens', 'subtotal', 'total', 'observacoesGerais', 'mercadoPago', 'criadoEm', 'atualizadoEm'])
@@ -12,7 +13,8 @@ service cloud.firestore {
         && request.resource.data.itens.size() > 0
         && request.resource.data.criadoEm == request.time;
 
-      allow read, delete: if request.auth != null;
+      allow get: if true;
+      allow list, delete: if request.auth != null;
       allow update: if request.auth != null 
         // Only allow updating status and mercadoPago fields. Keep totals, items and created time untouched.
         && request.resource.data.itens == resource.data.itens
