@@ -21,14 +21,16 @@ export const getAdminDb = () => {
         }
     }
     
-    // Attempt to get the database by ID if provided
     const configObj = require('../firebase-applet-config.json');
+    const app = getApps()[0];
+    
     if (configObj.firestoreDatabaseId && configObj.firestoreDatabaseId !== "(default)") {
         try {
-            return getFirestore(configObj.firestoreDatabaseId); // V12 supports string ID
+            return getFirestore(app, configObj.firestoreDatabaseId);
         } catch(e) {
-            return getFirestore();
+            console.error('Error getting named firestore, falling back to default', e);
+            return getFirestore(app);
         }
     }
-    return getFirestore();
+    return getFirestore(app);
 };

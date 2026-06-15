@@ -317,27 +317,10 @@ export default function CheckoutModal() {
                         </motion.div>
                       )}
 
-                      {formaPagamento === "online" && (
-                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="pl-10 space-y-3">
-                           <button 
-                             onClick={() => setDetalhePagamento("pix")} 
-                             className={`w-full flex items-center gap-3 p-3 border rounded-xl text-sm font-bold tracking-widest uppercase transition-colors ${detalhePagamento === "pix" ? "bg-white/10 border-creme text-white" : "border-creme/10 text-creme/60"}`}
-                           >
-                              <Smartphone size={20} /> Pix
-                           </button>
-                           <button 
-                             onClick={() => setDetalhePagamento("cartao")} 
-                             className={`w-full flex items-center gap-3 p-3 border rounded-xl text-sm font-bold tracking-widest uppercase transition-colors ${detalhePagamento === "cartao" ? "bg-white/10 border-creme text-white" : "border-creme/10 text-creme/60"}`}
-                           >
-                              <CreditCard size={20} /> Cartão de Crédito
-                           </button>
-                        </motion.div>
-                      )}
-
                       <button
                         onClick={() => {
                           setFormaPagamento("online");
-                          setDetalhePagamento("pix");
+                          if (!detalhePagamento || !["pix", "cartao"].includes(detalhePagamento)) setDetalhePagamento("pix");
                         }}
                         className={`w-full p-4 border rounded-xl flex items-center gap-4 transition-colors ${
                           formaPagamento === "online" ? "bg-amarelo/10 border-amarelo text-amarelo" : "border-creme/20 text-creme"
@@ -346,6 +329,32 @@ export default function CheckoutModal() {
                         <CreditCard size={24} />
                         <span className="font-bold tracking-widest uppercase">Pagar Online</span>
                       </button>
+
+                      <AnimatePresence>
+                        {formaPagamento === "online" && (
+                          <motion.div 
+                            initial={{ height: 0, opacity: 0 }} 
+                            animate={{ height: "auto", opacity: 1 }} 
+                            exit={{ height: 0, opacity: 0 }}
+                            className="pl-10 space-y-3 overflow-hidden"
+                          >
+                             <div className="pt-2" />
+                             <button 
+                               onClick={() => setDetalhePagamento("pix")} 
+                               className={`w-full flex items-center gap-3 p-3 border rounded-xl text-sm font-bold tracking-widest uppercase transition-colors ${detalhePagamento === "pix" ? "bg-white/10 border-creme text-white" : "border-creme/10 text-creme/60"}`}
+                             >
+                                <Smartphone size={20} /> Pix
+                             </button>
+                             <button 
+                               onClick={() => setDetalhePagamento("cartao")} 
+                               className={`w-full flex items-center gap-3 p-3 border rounded-xl text-sm font-bold tracking-widest uppercase transition-colors ${detalhePagamento === "cartao" ? "bg-white/10 border-creme text-white" : "border-creme/10 text-creme/60"}`}
+                             >
+                                <CreditCard size={20} /> Cartão de Crédito
+                             </button>
+                             <div className="pb-2" />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                   </div>
                 </div>
 
