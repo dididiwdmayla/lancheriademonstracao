@@ -5,19 +5,39 @@ import { calcularTotal } from "@/lib/calcular-pedido";
 
 export async function POST(req: NextRequest) {
   try {
-    const { docId, itens, cliente } = await req.json();
+    console.log("[pix] 0. rota iniciada");
+
+    if (!process.env.MP_ACCESS_TOKEN) console.error("[ENV] MP_ACCESS_TOKEN AUSENTE");
+    if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) console.error("[ENV] FIREBASE_SERVICE_ACCOUNT_KEY AUSENTE");
+    
+    let serviceAccount;
+    try {
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || "{}");
+    } catch (e) {
+      console.error("[ENV] FIREBASE_SERVICE_ACCOUNT_KEY não é JSON válido:", e);
+    }
+
+    const jsonBody = await req.json();
+    console.log("[pix] 1. body recebido:", JSON.stringify(jsonBody));
+
+    const { docId, itens, cliente } = jsonBody;
 
     if (!docId || !itens || itens.length === 0) {
       return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
     }
 
+    console.log("[pix] 2. inicializando (ou reusando) firebase-admin...");
+    getAdminDb(); // to ensure it doesn't break here
+
     // 1. Recalcula o total no servidor
+    console.log("[pix] 3. recalculando total...");
     const { total } = calcularTotal(itens);
+    console.log("[pix] 4. total recalculado:", total);
 
     // 2. Chama a API do Mercado Pago
     const mpToken = process.env.MP_ACCESS_TOKEN;
     if (!mpToken) {
-        return NextResponse.json({ error: "Configuração de pagamento incompleta no servidor." }, { status: 500 });
+        throw new Error("Configuração de pagamento incompleta no servidor.");
     }
 
     const idempotencyKey = uuidv4();
@@ -40,6 +60,7 @@ export async function POST(req: NextRequest) {
       date_of_expiration: dateOfExpiration
     };
 
+    console.log("[pix] 5. chamando Mercado Pago (POST /v1/payments)...");
     const mpResponse = await fetch("https://api.mercadopago.com/v1/payments", {
       method: "POST",
       headers: {
@@ -54,8 +75,10 @@ export async function POST(req: NextRequest) {
 
     if (!mpResponse.ok) {
        console.error("Erro MP Pix:", mpData);
-       return NextResponse.json({ error: "Erro ao gerar Pix no Mercado Pago" }, { status: 502 });
+       throw new Error(`Erro ao gerar Pix no MP: ${mpData?.message || mpResponse.statusText}`);
     }
+
+    console.log("[pix] 6. Pix gerado com sucesso, paymentId:", mpData.id);
 
     // Retorna QR code
     return NextResponse.json({
@@ -65,7 +88,13 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error("Erro rota Pix:", error);
-    return NextResponse.json({ error: error.message || "Erro interno" }, { status: 500 });
+    console.error("=== ERRO EM [PIX] ===");
+    console.error("Mensagem:", error?.message);
+    console.error("Stack:", error?.stack);
+    console.error("Causa/resposta:", JSON.stringify(error?.cause ?? error?.response ?? error, null, 2));
+    return NextResponse.json(
+      { erro: true, detalhe: error?.message ?? "erro desconhecido" },
+      { status: 500 }
+    );
   }
 }

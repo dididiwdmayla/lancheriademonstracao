@@ -1,24 +1,31 @@
 import { NextResponse } from "next/server";
 
-// TODO: Reativar na fase Mercado Pago — criação de pedido migra para o servidor com recálculo de preços e Admin SDK.
-
-/*
-import { adminDb } from "@/lib/firebase-admin";
-
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { carrinho, dadosCliente, formaPagamento, detalhePagamentoEntrega, observacoesGerais } = body;
-    
-    // (Recálculo de preços pelo backend etc. usando Admin SDK)
-    
-    return NextResponse.json({ success: true, codigo: "#SERVER" });
-  } catch (error) {
-    return NextResponse.json({ error: "Erro ao criar pedido" }, { status: 500 });
-  }
-}
-*/
+    console.log("[pedidos] 0. rota iniciada");
 
-export async function POST(req: Request) {
-  return NextResponse.json({ error: "Implementação server-side dormante" }, { status: 501 });
+    if (!process.env.MP_ACCESS_TOKEN) console.error("[ENV] MP_ACCESS_TOKEN AUSENTE");
+    if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) console.error("[ENV] FIREBASE_SERVICE_ACCOUNT_KEY AUSENTE");
+    
+    let serviceAccount;
+    try {
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || "{}");
+    } catch (e) {
+      console.error("[ENV] FIREBASE_SERVICE_ACCOUNT_KEY não é JSON válido:", e);
+    }
+
+    console.log("[pedidos] 1. Implementação dormante sendo chamada.");
+
+    return NextResponse.json({ error: "Implementação server-side dormante" }, { status: 501 });
+
+  } catch (error: any) {
+    console.error("=== ERRO EM [PEDIDOS] ===");
+    console.error("Mensagem:", error?.message);
+    console.error("Stack:", error?.stack);
+    console.error("Causa/resposta:", JSON.stringify(error?.cause ?? error?.response ?? error, null, 2));
+    return NextResponse.json(
+      { erro: true, detalhe: error?.message ?? "erro desconhecido" },
+      { status: 500 }
+    );
+  }
 }

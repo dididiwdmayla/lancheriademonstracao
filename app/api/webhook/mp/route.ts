@@ -3,10 +3,30 @@ import { getAdminDb } from "@/lib/firebase-admin";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    console.log("[webhook] 0. rota iniciada");
+
+    if (!process.env.MP_ACCESS_TOKEN) console.error("[ENV] MP_ACCESS_TOKEN AUSENTE");
+    if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) console.error("[ENV] FIREBASE_SERVICE_ACCOUNT_KEY AUSENTE");
+    
+    let serviceAccount;
+    try {
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || "{}");
+    } catch (e) {
+      console.error("[ENV] FIREBASE_SERVICE_ACCOUNT_KEY não é JSON válido:", e);
+    }
+
+    let body;
+    try {
+      body = await req.json();
+    } catch(e) {
+      console.log("[webhook] Sem body JSON");
+    }
+
     const url = new URL(req.url);
     const dataId = url.searchParams.get("data.id") || body?.data?.id;
     const type = url.searchParams.get("type") || body?.type;
+
+    console.log(`[webhook] 1. recebido type=${type}, data.id=${dataId}`);
 
     if (type !== "payment" || !dataId) {
        // Return 200 so MP doesn't retry non-payment notifications continuously
@@ -15,11 +35,11 @@ export async function POST(req: NextRequest) {
 
     const mpToken = process.env.MP_ACCESS_TOKEN;
     if (!mpToken) {
-       console.error("MP_ACCESS_TOKEN missing in webhook logic.");
-       return NextResponse.json({ error: "Missing config" }, { status: 500 });
+       throw new Error("MP_ACCESS_TOKEN missing in webhook logic.");
     }
 
     // Busca o pagamento atualizado diretamente do Mercado Pago
+    console.log(`[webhook] 2. buscando pagamento ${dataId} na API do MP...`);
     const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${dataId}`, {
       headers: {
         "Authorization": `Bearer ${mpToken}`
@@ -27,24 +47,25 @@ export async function POST(req: NextRequest) {
     });
 
     if (!paymentResponse.ok) {
-       console.error(`Failed to fetch payment ${dataId} from MP.`);
-       return NextResponse.json({ error: "Fetch payment failed" }, { status: 502 });
+       const resp = await paymentResponse.text();
+       throw new Error(`Failed to fetch payment ${dataId} from MP. Status: ${paymentResponse.status}. Body: ${resp}`);
     }
 
     const paymentData = await paymentResponse.json();
-    console.log(`Webhook MP Received: Payment ${dataId} | Status: ${paymentData.status} | External Ref: ${paymentData.external_reference}`);
+    console.log(`[webhook] 3. MP Response: Status ${paymentData.status} | External Ref: ${paymentData.external_reference}`);
 
     const externalRef = paymentData.external_reference;
     if (!externalRef) {
        return NextResponse.json({ received: true }); // Ignore, not ours perhaps
     }
 
+    console.log("[webhook] 4. inicializando firebase-admin...");
     const db = getAdminDb();
     const pedidoRef = db.collection("pedidos").doc(externalRef);
     const pedidoSnap = await pedidoRef.get();
 
     if (!pedidoSnap.exists) {
-       console.error(`Pedido ${externalRef} não encontrado.`);
+       console.error(`[webhook] Pedido ${externalRef} não encontrado.`);
        return NextResponse.json({ received: true });
     }
 
@@ -52,6 +73,7 @@ export async function POST(req: NextRequest) {
 
     // Idempotência
     if (pedido?.status === "pago") {
+       console.log(`[webhook] Pedido ${externalRef} já estava pago, ignorando.`);
        return NextResponse.json({ received: true });
     }
 
@@ -72,11 +94,19 @@ export async function POST(req: NextRequest) {
         updateData.mercadoPago.linkComprovante = receiptUrl;
     }
 
+    console.log(`[webhook] 5. atualizando pedido ${externalRef}...`);
     await pedidoRef.update(updateData);
+    console.log(`[webhook] 6. concluído!`);
     
     return NextResponse.json({ received: true });
   } catch (error: any) {
-    console.error("Erro webhook MP:", error);
-    return NextResponse.json({ error: "Webhook failed" }, { status: 500 });
+    console.error("=== ERRO EM [WEBHOOK] ===");
+    console.error("Mensagem:", error?.message);
+    console.error("Stack:", error?.stack);
+    console.error("Causa/resposta:", JSON.stringify(error?.cause ?? error?.response ?? error, null, 2));
+    return NextResponse.json(
+      { erro: true, detalhe: error?.message ?? "erro desconhecido" },
+      { status: 500 }
+    );
   }
 }
